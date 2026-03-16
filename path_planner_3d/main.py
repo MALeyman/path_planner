@@ -9,8 +9,32 @@
 
 
 import os
+
+# import signal
+# signal.signal(signal.SIGINT, signal.SIG_IGN) 
+
+
+# # ★★★ ЖЁСТКИЙ FIX для NVIDIA ★★★
+# os.environ['PYQTGRAPH_USE_OPENGL'] = '0'
+# os.environ["QT_OPENGL"] = "software"
+# os.environ["QSG_RENDERER_DEBUG"] = "renderer"  # Debug Qt
+# os.environ["QT_QUICK_BACKEND"] = "software"
+
+
+# ★★★ ЖЁСТКОЕ отключение OpenGL ★★★
+
+# os.environ["QT_OPENGL"] = "software"
+# os.environ["QT_OPENGL_IMPLEMENTATION"] = "software"
+# os.environ["QSG_RENDERER_DEBUG"] = "renderer"
+
+os.environ["OMP_NUM_THREADS"] = "1"
+os.environ["MKL_NUM_THREADS"] = "1"  
+os.environ["OPENBLAS_NUM_THREADS"] = "1"
+os.environ["PYQTGRAPH_USE_OPENGL"] = "0"
+
+
 import sys
-import numpy as np
+
 from PyQt5 import QtWidgets, QtCore, QtGui
 import pyqtgraph.opengl as gl
 import logging
@@ -18,9 +42,7 @@ import logging
 from objects import Robot, Obstacle
 from calculate.check_collision import check_collision
 from animate.animate import MainWindow
-
-
-
+import time
 
 
 
@@ -36,12 +58,12 @@ log_path = os.path.join(logs_dir, 'app.log')
 
 # Настройка логгера — вывод логов в файл и/или консоль
 logging.basicConfig(
-    level=logging.INFO,  # уровень логирования
-    format='%(asctime)s - %(levelname)s - %(message)s',  # формат сообщения
-    handlers=[
-        logging.FileHandler(log_path, mode='a', encoding='utf-8'),  # лог в файл
-        logging.StreamHandler()  # лог в консоль
-    ]
+	level=logging.INFO,  # уровень логирования
+	format='%(asctime)s - %(levelname)s - %(message)s',  # формат сообщения
+	handlers=[
+	    logging.FileHandler(log_path, mode='a', encoding='utf-8'),  # лог в файл
+	    logging.StreamHandler()  # лог в консоль
+	]
 )
 
 # logging.debug("Отладочное сообщение")
@@ -50,38 +72,47 @@ logging.basicConfig(
 # logging.error("Ошибка")
 # logging.critical("Критическая ошибка")
 
-
-
-
 if __name__ == "__main__":
 
+	import numpy as np
+	# Параметры
+	space_size=(100, 100, 100)                  # Размер пространства
+	start_pos = [0, 0, space_size[2]/2]         # Стартовая позиция робота
+	goal_pos = [100, 100, space_size[2]/2]      # Целевая точка робота
+	speed_robot = 3.0                           # Скорость робота
+	num_obstacles = 10                         # Количество препятствий
+	size_obstacles = 4                          # Размеры препятствий
+	radar_distance = 30                         # Дальность обнаружения препятствий (дальность радара)
+	sector_angle = np.pi/2                      # Угол действия радара
 
-    # Параметры
-    space_size=(100, 100, 100)                  # Размер пространства
-    start_pos = [0, 0, space_size[2]/2]         # Стартовая позиция робота
-    goal_pos = [100, 100, space_size[2]/2]      # Целевая точка робота
-    speed_robot = 3.0                           # Скорость робота
-    num_obstacles = 100                         # Количество препятствий
-    size_obstacles = 4                          # Размеры препятствий
-    radar_distance = 20                         # Дальность обнаружения препятствий (дальность радара)
+	app = QtWidgets.QApplication(sys.argv)
+	window = MainWindow(
+	    space_size=space_size,
+	    num_obstacles=num_obstacles,
+	    start_pos=start_pos,
+	    goal_pos=goal_pos,
+	    speed_robot=speed_robot,
+	    size_obstacles=size_obstacles,
+	    radar_distance=radar_distance,
+	    sector_angle=sector_angle
+
+	)
+	
+	window.resize(1400, 900)
+	window.move(50, 50)
+	window.show()
+	# ★★★ УЛУЧШЕННАЯ задержка ★★★
+	QtCore.QTimer.singleShot(2000, lambda: (  # 2 секунды
+		window.activateWindow(), 
+		window.raise_()
+	))
+	# QtCore.QTimer.singleShot(500, window.start_animation)
+	# window.activateWindow()
+	# window.raise_()
+	
+	sys.exit(app.exec_())
 
 
-    app = QtWidgets.QApplication(sys.argv)
-    window = MainWindow(
-        space_size=space_size,
-        num_obstacles=num_obstacles,
-        start_pos=start_pos,
-        goal_pos=goal_pos,
-        speed_robot=speed_robot,
-        size_obstacles=size_obstacles,
-        radar_distance=radar_distance
-    )
 
-    window.show()
-    window.showNormal()
-    window.activateWindow()
-    window.raise_()
-
-    sys.exit(app.exec_())
 
 
