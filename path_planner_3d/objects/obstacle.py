@@ -5,18 +5,12 @@ from pyqtgraph.Qt import QtGui
 from objects import SphereObject
 
 
-# class Obstacle(SphereObject):
-#     def __init__(self, position, radius, view):
-#         super().__init__(position, radius, (0, 1, 0, 1), view)  # Зеленый цвет препятствия
-
-
-
-
 class Obstacle(SphereObject):
-	def __init__(self, position, radius, view, space_size, speed=0.05):
+	def __init__(self, id_obstacle, position, radius, view, space_size, speed=0.05):
 		super().__init__(position, radius, (0, 1, 0, 1), view)  # зеленый
 		self.space_size = space_size
 		self.speed = speed
+		self.id_obstacle = id_obstacle
 		# Случайное начальное направление
 		direction = np.random.uniform(-1, 1, 3)
 		norm = np.linalg.norm(direction)

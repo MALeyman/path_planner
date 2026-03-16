@@ -100,23 +100,24 @@ class Radar:
 		])
 	
 
-	def scan_pyramid_for_obstacles(self, obstacles):
-		"""Возвращает препятствия ВНУТРИ пирамиды радара"""
-		obstacles_info = []
+	# def scan_pyramid_for_obstacles(self, obstacles):
+	# 	"""Возвращает препятствия ВНУТРИ пирамиды радара"""
+	# 	obstacles_info = []
 		
-		# Вычисляем пирамиду (
-		base_center = self.robot_pos + self.scan_range * self.direction
-		base_side = 2 * self.scan_range * np.tan(self.sector_angle / 2)
-		base_vertices = self.create_perpendicular_square(base_center, self.direction, base_side)
+	# 	# Вычисляем пирамиду (
+	# 	base_center = self.robot_pos + self.scan_range * self.direction
+	# 	base_side = 2 * self.scan_range * np.tan(self.sector_angle / 2)
+	# 	base_vertices = self.create_perpendicular_square(base_center, self.direction, base_side)
 		
-		# Сканируем препятствия
-		for i, obs in enumerate(obstacles):
-			if self.is_sphere_inside_pyramid(obs.get_position(), obs.radius):
-				distance = np.linalg.norm(obs.get_position() - self.robot_pos)
-				direction_to_obs = (obs.get_position() - self.robot_pos) / distance
-				obstacles_info.append({'index': i, 'pos': obs.position, 'dist': distance})
+	# 	# Сканируем препятствия
+	# 	for i, obs in enumerate(obstacles):
+	# 		if self.is_sphere_inside_pyramid(obs.get_position(), obs.radius):
+	# 			distance = np.linalg.norm(obs.get_position() - self.robot_pos)
+	# 			direction_to_obs = (obs.get_position() - self.robot_pos) / distance
+	# 			obstacles_info.append({'index': i, 'pos': obs.position, 'dist': distance})
 		
-		return obstacles_info
+	# 	return obstacles_info
+
 
 	def is_sphere_inside_pyramid(self, obs_pos, obs_radius):
 		"""сфера внутри пирамиды?"""

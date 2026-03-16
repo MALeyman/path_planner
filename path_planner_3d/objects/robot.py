@@ -10,15 +10,24 @@ class Robot(SphereObject):
 		super().__init__(position, radius, (0, 0, 1, 1), view)  # Синий цвет робота
 		self.speed = speed
 		self.direction = direction  # начальное направление
+		self.velocity = self.direction * self.speed  # вектор скорости
 
+	# Единичный вектор направления
 	def set_direction(self, direction):
 		norm = np.linalg.norm(direction)
 		if norm > 1e-8:
 			self.direction = direction / norm
 
+	# Скаляр скорости
 	def move_step(self):
 		new_pos = self.position + self.direction * self.speed
+		self.velocity = self.direction * self.speed 
 		self.set_position(new_pos)
+
+	# Вектор скорости - direction * speed
+	def get_velocity(self):
+		"""[vx, vy, vz] = direction * speed"""
+		return self.velocity.copy()
 
 
 

@@ -76,14 +76,21 @@ if __name__ == "__main__":
 
 	import numpy as np
 	# Параметры
-	space_size=(100, 100, 100)                  # Размер пространства
-	start_pos = [0, 0, space_size[2]/2]         # Стартовая позиция робота
-	goal_pos = [100, 100, space_size[2]/2]      # Целевая точка робота
-	speed_robot = 3.0                           # Скорость робота
-	num_obstacles = 10                         # Количество препятствий
-	size_obstacles = 4                          # Размеры препятствий
-	radar_distance = 30                         # Дальность обнаружения препятствий (дальность радара)
-	sector_angle = np.pi/2                      # Угол действия радара
+	size = 200
+	space_size=(size, size, size)                  			# Размер пространства
+	start_pos = [0, 0, space_size[2]/2]                  	# Стартовая позиция робота
+	goal_pos = [size*0.8, size*0.8, space_size[2]/2]      	# Целевая точка робота
+	# goal_pos = [0, 200, space_size[2]/2] 
+	speed_robot = 0.3                           			# Скорость робота
+	num_obstacles = 150                         				# Количество препятствий
+	size_obstacles = 4                          			# Размеры препятствий
+	radar_distance = 50                         			# Дальность обнаружения препятствий (дальность радара)
+	sector_angle = np.pi/2                      			# Угол действия радара
+	speed_obstacles = 0.2 									# Скорость препятствий
+	matrix_size=91
+	startup_test = True										# Флаг запуска в тесте
+
+
 
 	app = QtWidgets.QApplication(sys.argv)
 	window = MainWindow(
@@ -94,7 +101,10 @@ if __name__ == "__main__":
 	    speed_robot=speed_robot,
 	    size_obstacles=size_obstacles,
 	    radar_distance=radar_distance,
-	    sector_angle=sector_angle
+	    sector_angle=sector_angle,
+		speed_obstacles=speed_obstacles,
+		matrix_size=matrix_size,
+		startup_test=startup_test
 
 	)
 	
@@ -102,7 +112,7 @@ if __name__ == "__main__":
 	window.move(50, 50)
 	window.show()
 	# ★★★ УЛУЧШЕННАЯ задержка ★★★
-	QtCore.QTimer.singleShot(2000, lambda: (  # 2 секунды
+	QtCore.QTimer.singleShot(500, lambda: (  # 2 секунды
 		window.activateWindow(), 
 		window.raise_()
 	))

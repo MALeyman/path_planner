@@ -16,10 +16,10 @@ import numpy as np
 
 def check_collision(obj1, obj2):
 	"""БЕЗОПАСНАЯ проверка столкновений"""
-	try:                    # ← 1 ТАБ
-		diff = obj1.position - obj2.position      # ← 2 ТАБА
-		dist_sq = diff[0]**2 + diff[1]**2 + diff[2]**2  # ← 2 ТАБА  
-		dist = np.sqrt(dist_sq)                    # ← 2 ТАБА
-		return dist < (obj1.radius + obj2.radius)  # ← 2 ТАБА
-	except:                  # ← 1 ТАБ  
-		return False         # ← 2 ТАБА
+	try:                    # 
+		diff = obj1.position - obj2.position      #
+		dist_sq = diff[0]**2 + diff[1]**2 + diff[2]**2  #  
+		dist = np.sqrt(dist_sq)                    # 
+		return dist < (obj1.radius + obj2.radius)  # 
+	except:                  # 
+		return False         # 

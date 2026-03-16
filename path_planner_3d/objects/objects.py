@@ -4,15 +4,16 @@ import pyqtgraph.opengl as gl
 from pyqtgraph.Qt import QtGui
 
 
-
 class SphereObject:
-	def __init__(self, position, radius, color, view):
+	def __init__(self, position, radius, color, view, speed=0):
 		self.position = np.array(position, dtype=float)
 		self.radius = radius
 		self.color = color
 		self.mesh = self.create_sphere()
 		self.mesh.translate(*self.position)
 		view.addItem(self.mesh)
+		self.speed = speed
+		
 
 	def create_sphere(self):
 		meshdata = gl.MeshData.sphere(rows=20, cols=20)
@@ -32,3 +33,8 @@ class SphereObject:
 		self.color = color
 		self.mesh.setColor(color)
 		
+	def set_speed(self, new_speed):
+		self.speed = np.array(new_speed)
+		
+	def get_speed(self):
+		return self.speed.copy()

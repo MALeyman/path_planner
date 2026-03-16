@@ -15,8 +15,8 @@ import pyqtgraph as pg
 import multiprocessing as mp
 from queue import Empty, Queue
 
-
-
+# from animate.distance_matrix import DistanceMatrixWindow
+from .distance_matrix import DistanceMatrixWindow, MatrixDistance
 
 red = QtGui.QColor(255, 0, 0)
 green = QtGui.QColor(0, 255, 0)
@@ -51,7 +51,7 @@ class ShiftedGridItem:
 
 # Главное окно приложения
 class MainWindow(QtWidgets.QWidget):
-	def __init__(self, space_size=(100,100,100), num_obstacles=10, start_pos=None, goal_pos=None, speed_robot=1.0, size_obstacles=2, radar_distance=20, sector_angle = np.pi/4):
+	def __init__(self, space_size=(100,100,100), num_obstacles=10, start_pos=None, goal_pos=None, speed_robot=1.0, size_obstacles=2, radar_distance=20, sector_angle = np.pi/4, speed_obstacles=0, matrix_size=91, startup_test=True):
 		super().__init__()
 		self.setWindowTitle("3D Планировщик")
 
@@ -64,46 +64,40 @@ class MainWindow(QtWidgets.QWidget):
 		self.size_obstacles = size_obstacles
 		self.radar_distance = radar_distance
 		self.sector_angle = sector_angle
+		self.speed_obstacles = speed_obstacles
+		self.detected_obstacles = []
+		self.matrix_size = matrix_size
+		self.startup_test =startup_test
 
 		# -------------------    Интерфейс   ----------------------
+
 		# -------------------    СОЗДАЁМ ВСЕ ВИДЖЕТЫ 
 		self.view = gl.GLViewWidget()
 		# self.view.setCameraPosition(distance=180)
 		self.view.renderOrder = 'frontToBack' 
 		self.setup_camera()
 
+
+		# ★★★ ВТОРОЕ ОКНО ★★★
+		self.distance_window = DistanceMatrixWindow(matrix_size=self.matrix_size, radar_distance=self.radar_distance)
+		self.distance_window.show()
+		
+		# Матрица дистанций
+		self.matrix_calc = MatrixDistance(matrix_size=self.matrix_size, scan_range=self.radar_distance, num_sectors=self.matrix_size)
+		self.matrix_counter = 0
+
+
 		self.start_button = QtWidgets.QPushButton("Старт")
 		self.pause_button = QtWidgets.QPushButton("Пауза")
 		self.stop_button = QtWidgets.QPushButton("Стоп")
 
-
-		# ---------------------   МАТРИЦА ДИСТАНЦИЙ ПЕРЕД layout 
-		# self.distance_widget = pg.GraphicsLayoutWidget()
-		# self.distance_widget.setFixedSize(300, 300)
-		# self.distance_plot = self.distance_widget.addPlot(title="Матрица дистанций радара")
-		# self.distance_img = pg.ImageItem()
-		# self.distance_plot.addItem(self.distance_img)
-		# self.distance_plot.getViewBox().setAspectLocked(True)
-		# self.distance_img.setLookupTable(pg.colormap.get('grey'))
-		# ★★★ РУЧНОЙ СЕРЫЙ COLORMAP ★★★
-		# pos = np.array([0.0, 1.0])
-		# color = np.array([[0,0,0,1], [1,1,1,1]])  # 0=чёрный, 1=белый
-		# cmap = pg.ColorMap(pos, color)
-		# lut = cmap.getLookupTable()
-		# self.distance_img.setLookupTable(lut)
-		# self.distance_plot.invertY(True)             # Y сверху вниз (как MATLAB!)
-		# self.distance_plot.showGrid(x=True, y=True)
 
 		# Кнопки
 		self.start_button = QtWidgets.QPushButton("Старт")
 		self.pause_button = QtWidgets.QPushButton("Пауза")
 		self.stop_button = QtWidgets.QPushButton("Стоп")
 
-		# ★★★ КРИТИЧНО: инициализация состояний ★★★
-		# self.running = False
-		# self.frame_count = 0
-		# self.test_counter = 0
-
+	
 		# ============== главный  LAYOUT ===============
 		main_layout = QtWidgets.QHBoxLayout()
 		
@@ -116,12 +110,6 @@ class MainWindow(QtWidgets.QWidget):
 		btn_layout.addWidget(self.stop_button)
 		left_layout.addLayout(btn_layout)
 		main_layout.addLayout(left_layout, stretch=3)
-
-
-		# --------------    Правая: Heatmap  -----------
-		# right_layout = QtWidgets.QVBoxLayout()
-		# right_layout.addWidget(self.distance_widget, stretch=1)
-		# main_layout.addLayout(right_layout, stretch=1)
 
 
 		layout = QtWidgets.QVBoxLayout()
@@ -149,45 +137,9 @@ class MainWindow(QtWidgets.QWidget):
 		# stop_button.clicked  ──(сигнал)──>  stop_animation()- (Слот)
 		self.stop_button.clicked.connect(self.stop_animation)
 
-		# QtCore.QTimer.singleShot(100, self.init_distance_matrix) 
-
-		# # ==== Многопроцессорный радар ====
-		# self.radar_queue = Queue()
-		# self.radar_process = None
-
-
 
 		# Инициализация визуализации
 		self.init_visualizer()
-
-
-	# def start_radar_process(self):
-	#     """Запуск heatmap в отдельном процессе"""
-	#     self.radar_process = mp.Process(target=self.radar_window_process)
-	#     self.radar_process.start()
-		
-	# def radar_window_process(self):
-	#     """Отдельный процесс: Heatmap окно"""
-	#     app = pg.mkQApp("Radar Heatmap")
-		
-	#     win = pg.GraphicsLayoutWidget(show=True)
-	#     win.setWindowTitle("Матрица дистанций радара")
-	#     plot = win.addPlot(title="Radar Distance Matrix")
-	#     img = pg.ImageItem()
-	#     plot.addItem(img)
-	#     plot.invertY(True)
-	#     plot.showGrid(x=True, y=True)
-		
-	#     num_sectors = 64
-	#     while True:
-	#         try:
-	#             matrix = self.radar_queue.get(timeout=0.1)
-	#             img.setImage(matrix.T)
-	#         except Empty:
-	#             # Заглушка
-	#             test_matrix = np.random.rand(num_sectors, num_sectors) * 20
-	#             img.setImage(test_matrix.T)
-	
 
 
 	def init_visualizer(self):
@@ -215,31 +167,31 @@ class MainWindow(QtWidgets.QWidget):
 					radius=1.0, 
 					view=self.view, 
 					direction=(np.array(self.goal_pos) - np.array(self.start_pos)) / 
-							np.linalg.norm(np.array(self.goal_pos) - np.array(self.start_pos))
+							np.linalg.norm(np.array(self.goal_pos) - np.array(self.start_pos)),
+					speed=self.speed_robot
 				)
 
-		self.obstacles = []
-		for _ in range(self.num_obstacles):
+		self.obstacles = []  # Список препятствий
+		# self.num_obstacles = 2
+		pos1 = [[10, 20 , 100], [20, 10, 100], [10, 10, 110], [10, 10, 90]]
+		pos1 = [ [30, 0, 100]]
+		# self.num_obstacles = len(pos1)
+		print("Позиция всех препятствий = ", pos1)
+		print("Стартовая позиция робота ==", self.start_pos)
+		print("Позиция цели == ", self.goal_pos)
+		for num_obstacle in range(self.num_obstacles):
 			pos = np.random.uniform(0, min(self.space_size), 3)
-			obstacle = Obstacle(pos, radius=self.size_obstacles, view=self.view, space_size=self.space_size)
+			# pos = [10, -10 + num_obstacle * 30, self.space_size[2]/2]  
+			# pos = pos1[num_obstacle]
+			
+			print("Позиция текущего препятствия = ", pos)
+			obstacle = Obstacle(num_obstacle, pos, radius=self.size_obstacles, view=self.view, space_size=self.space_size, speed=self.speed_obstacles)
 			self.obstacles.append(obstacle)
-
-
-		# # ============  HEATMAP ЛИНИИ И ТЕКСТ ========
-		# self.target_line = pg.PlotDataItem(pen=pg.mkPen('r', width=3))
-		# self.direction_line = pg.PlotDataItem(pen=pg.mkPen('b', width=3))
-		# self.distance_plot.addItem(self.target_line)
-		# self.distance_plot.addItem(self.direction_line)
-		
-		# self.speed_text = pg.TextItem(text="Скорость: 0.0", color='w', anchor=(0,0))
-		# self.distance_plot.addItem(self.speed_text)
-
 
 
 		# ---------------   РАДАР ---------------------
 		self.radar = Radar(self.view, self.robot.position, self.robot.direction, 
 						self.radar_distance, sector_angle=self.sector_angle)
-
 
 
 		# ---------------------    Линии пути    -------------------------------
@@ -262,22 +214,7 @@ class MainWindow(QtWidgets.QWidget):
 		)
 		self.view.addItem(self.direct_line)
 
-
-
-
-	# def init_distance_matrix(self):
-	#     """Инициализация heatmap ПОСЛЕ запуска"""
-	#     self.target_line = pg.PlotDataItem(pen=pg.mkPen('r', width=3))
-	#     self.direction_line = pg.PlotDataItem(pen=pg.mkPen('b', width=3))
-	#     self.speed_text = pg.TextItem(text="Скорость: 0.0", color='w')
-		
-	#     self.distance_plot.addItem(self.target_line)
-	#     self.distance_plot.addItem(self.direction_line)
-	#     self.distance_plot.addItem(self.speed_text)
-
-
-
-
+		self.update_animation()
 
 
 	def add_axes(self):
@@ -297,11 +234,7 @@ class MainWindow(QtWidgets.QWidget):
 		"""Запуск анимации"""
 		if not self.timer.isActive():
 			logging.info("Начало движения")
-			self.timer.start(100)  # 30мс = 33 FPS
-
-			# # Запуск heatmap процесса через 0.5с
-			# QtCore.QTimer.singleShot(500, self.start_radar_process)
-
+			self.timer.start(33)  # 30мс = 33 FPS
 
 	def pause_animation(self):
 		logging.info("Пауза анимации")
@@ -317,7 +250,7 @@ class MainWindow(QtWidgets.QWidget):
 		#     return
 		desired_dir = self.goal_pos - self.robot.get_position()     # Направление на цель
 		norm = np.linalg.norm(desired_dir)    # Расстояние до цели
-		if norm < 0.1:
+		if norm < 0.6:
 			logging.info("Цель достигнута!")
 			self.timer.stop()
 			return
@@ -334,58 +267,48 @@ class MainWindow(QtWidgets.QWidget):
 		self.robot.move_step()
 
 
-		# ----------  ОБНОВЛЯЕМ РАДАР  ------------
+		# --------------------------  ОБНОВЛЯЕМ РАДАР  ------------
 		self.radar.update(self.robot.position, self.robot.direction)
 		
+		# ------------------------- ОБНОВЛЕНИЕ ПРЕПЯТСТВИЙ --------
+		self.detected_obstacles = [] # Список обнаруженных препятствий
 		for obs in self.obstacles:
 			obs.move()
-			dist = np.linalg.norm(obs.get_position() - self.robot.get_position())
+			# dist = np.linalg.norm(obs.get_position() - self.robot.get_position())
+			# Если препятствие попало в зону действия радара
 			if self.radar.is_sphere_inside_pyramid(obs.position, obs.radius): 
 				obs.set_color((1.0, 1.0, 0.0, 1.0))  # Жёлтый!
+				self.detected_obstacles.append(obs)
 			else:
 				obs.set_color((0.0, 1.0, 0.0, 1.0))  # Зелёный!
 
+			# Если столкновение
 			if check_collision(self.robot, obs):
 				obs.set_color((1, 0, 0, 1))
 				logging.info("Столкновение с препятствием!")
 				self.timer.stop()
 				return
 
+		# ---   Обновление  МАТРИЦЫ ДИСТАНЦИЙ ---
+		matrix, min_dist, detected, angle = self.matrix_calc.update_distance_matrix(self.robot, self.detected_obstacles, self.startup_test)
+		print(matrix)
+		print(min_dist)
+		print(detected)
+		print(angle)
 
-		# ★★★ Отправка данных в процесс ========
-		# radar_data = self.get_distance_matrix()
-		# self.radar_queue.put(radar_data)
+		# min_val = np.min(matrix)
+		# idx_flat = np.argmin(matrix)
 
-		# ----------  ОБНОВЛЕНИЕ МАТРИЦЫ ДИСТАНЦИЙ ----------
-		matrix_dist = self.get_distance_matrix()  # Реализуйте!
-		# self.update_distance_matrix(matrix_dist)
+		# # 3. Перевести в пару индексов (i, j)
+		# i, j = np.unravel_index(idx_flat, matrix.shape)
+		# print("Минимальный элемент:", min_val)
+		# print("Индексы (i, j):", i, j)
 
+		# Курсовой вектор
+		self.distance_window.set_robot_direction(angle, self.startup_test)
 
-
-	def get_distance_matrix(self):
-		"""Матрица дистанций радара"""
-		num_sectors = 64
-		matrix = np.full((num_sectors, num_sectors), np.nan)
-		
-		try:
-			# Сканируем препятствия
-			radar_hits = self.radar.scan_pyramid_for_obstacles(self.obstacles)
-			for hit in radar_hits:
-				# Преобразуем 3D -> углы (заглушка)
-				az = np.random.uniform(-np.pi, np.pi)
-				el = np.random.uniform(-np.pi/2, np.pi/2)
-				
-				i = int((az + np.pi) / (2*np.pi) * num_sectors)
-				j = int((el + np.pi/2) / np.pi * num_sectors)
-				
-				if 0 <= i < num_sectors and 0 <= j < num_sectors:
-					matrix[i, j] = hit.get('dist', np.random.uniform(5, 15))
-		except:
-			pass  # Если радар не готов — пустая матрица
-		
-		return matrix
-
-
+		# Визуализация матрицы дистанций
+		self.distance_window.update_matrix(matrix)
 
 
 	def setup_camera(self):
