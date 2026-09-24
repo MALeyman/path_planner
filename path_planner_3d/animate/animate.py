@@ -10,13 +10,19 @@ import pyqtgraph.opengl as gl
 from pyqtgraph.Qt import QtGui
 from objects import Robot, Obstacle
 from calculate.check_collision import check_collision
-from radar.radar import Radar
 import pyqtgraph as pg 
 import multiprocessing as mp
 from queue import Empty, Queue
 
+
 # from animate.distance_matrix import DistanceMatrixWindow
-from .distance_matrix import DistanceMatrixWindow, MatrixDistance
+from .distance_matrix import DistanceMatrixWindow
+from environment import physics_process
+from environment.planner import planner_process
+from radar.core import MatrixDistance
+
+from radar.radar import Radar
+
 
 red = QtGui.QColor(255, 0, 0)
 green = QtGui.QColor(0, 255, 0)
@@ -51,11 +57,25 @@ class ShiftedGridItem:
 
 # Главное окно приложения
 class MainWindow(QtWidgets.QWidget):
-	def __init__(self, space_size=(100,100,100), num_obstacles=10, start_pos=None, goal_pos=None, speed_robot=1.0, size_obstacles=2, radar_distance=20, sector_angle = np.pi/4, speed_obstacles=0, matrix_size=91, startup_test=True):
+	def __init__(self, space_size=(100,100,100), num_obstacles=10, start_pos=None, goal_pos=None, speed_robot=1.0, size_obstacles=2, radar_distance=20, sector_angle = np.pi/4, speed_obstacles=0, matrix_size=91, startup_test=True, fps=33):
 		super().__init__()
-		self.setWindowTitle("3D Планировщик")
+		
+		self.setWindowTitle("3D Планировщик")  # -------  	Заголовок  
 
-		#  ------------------     Параметры   -------------------
+		#  ------------------------------------------     	Параметры   -------------------
+		self._init_parameters(space_size, num_obstacles, start_pos, goal_pos, speed_robot, size_obstacles, radar_distance, sector_angle, speed_obstacles, matrix_size, startup_test, fps)
+		
+		self._create_widgets()    	# -----------------    	СОЗДАЁМ ВСЕ ВИДЖЕТЫ 
+		self._setup_layout()	 	# -----------------		Компоновка виджетов
+		self._setup_signals()		# -----------------		Сигналы
+		self._init_visualizer()   	# --------------    	Инициализация визуализации
+		self._setup_queues_and_processes()   # -------		Очереди между процессами
+
+
+	def _init_parameters(self, space_size, num_obstacles, start_pos, goal_pos, speed_robot, size_obstacles, radar_distance, sector_angle, speed_obstacles, matrix_size, startup_test, fps):
+		''' 
+		Инициализация параметров
+		'''
 		self.space_size = space_size
 		self.num_obstacles = num_obstacles
 		self.start_pos = start_pos if start_pos is not None else [self.space_size[0]/4, self.space_size[1]/4, self.space_size[2]/4]
@@ -68,36 +88,52 @@ class MainWindow(QtWidgets.QWidget):
 		self.detected_obstacles = []
 		self.matrix_size = matrix_size
 		self.startup_test =startup_test
+		# Матрица дистанций
+		self.matrix_calc = MatrixDistance(matrix_size=self.matrix_size, scan_range=self.radar_distance, num_sectors=self.matrix_size)
+		# self.matrix_counter = 0
+		self.fps = fps
+		#  Таймер для анимации  
+		self.timer = QtCore.QTimer()
 
-		# -------------------    Интерфейс   ----------------------
 
-		# -------------------    СОЗДАЁМ ВСЕ ВИДЖЕТЫ 
+	def _create_widgets(self):
+		''' 
+		Создание виджетов
+		'''
 		self.view = gl.GLViewWidget()
 		# self.view.setCameraPosition(distance=180)
 		self.view.renderOrder = 'frontToBack' 
 		self.setup_camera()
 
-
-		# ★★★ ВТОРОЕ ОКНО ★★★
+		# ----------       ВТОРОЕ ОКНО 
 		self.distance_window = DistanceMatrixWindow(matrix_size=self.matrix_size, radar_distance=self.radar_distance)
 		self.distance_window.show()
 		
-		# Матрица дистанций
-		self.matrix_calc = MatrixDistance(matrix_size=self.matrix_size, scan_range=self.radar_distance, num_sectors=self.matrix_size)
-		self.matrix_counter = 0
-
-
+		# -------------    Кнопки
 		self.start_button = QtWidgets.QPushButton("Старт")
 		self.pause_button = QtWidgets.QPushButton("Пауза")
 		self.stop_button = QtWidgets.QPushButton("Стоп")
 
+		
+	def _setup_queues_and_processes(self):
+		'''
+		 Очереди между процессами
+		'''
+		
+		self.queue_env = mp.Queue()         # physics → GUI + radar
+		self.queue_radar = mp.Queue()       # radar → GUI
+		self.queue_planner = mp.Queue()     # planner → GUI
 
-		# Кнопки
-		self.start_button = QtWidgets.QPushButton("Старт")
-		self.pause_button = QtWidgets.QPushButton("Пауза")
-		self.stop_button = QtWidgets.QPushButton("Стоп")
+		# Процессы (запускаем при старте анимации)
+		self.p_physics = None
+		self.p_radar = None
+		self.p_planner = None
 
-	
+
+	def _setup_layout(self):
+		''' 
+		Компоновка виджетов
+		'''
 		# ============== главный  LAYOUT ===============
 		main_layout = QtWidgets.QHBoxLayout()
 		
@@ -111,11 +147,9 @@ class MainWindow(QtWidgets.QWidget):
 		left_layout.addLayout(btn_layout)
 		main_layout.addLayout(left_layout, stretch=3)
 
-
 		layout = QtWidgets.QVBoxLayout()
 		layout.addLayout(main_layout)
 		self.setLayout(layout)
-
 
 		# Явно задаём размер и позицию
 		self.resize(1400, 900)           # Ширина × высота
@@ -123,26 +157,21 @@ class MainWindow(QtWidgets.QWidget):
 		self.setMinimumSize(1000, 700)   # Минимальный размер
 
 
-		# ===========   Таймер для анимации   ======
-		self.timer = QtCore.QTimer()
-		#  Соединение сигнала со слотом: 
-		# self.timer.timeout - (Сигнал по тайм ауту) ──> self.update_animation() - (Слот)
-		self.timer.timeout.connect(self.update_animation)
-
-		# ===========   Кнопки   ========
+	def _setup_signals(self):
+		''' 
+		Сигналы
+		'''
 		# start_button.clicked  ──(сигнал)──>  start_animation()- (Слот)
 		self.start_button.clicked.connect(self.start_animation)
 		# pause_button.clicked  ──(сигнал)──>  pause_animation()- (Слот)
 		self.pause_button.clicked.connect(self.pause_animation)
 		# stop_button.clicked  ──(сигнал)──>  stop_animation()- (Слот)
 		self.stop_button.clicked.connect(self.stop_animation)
+		# self.timer.timeout - (Сигнал по тайм ауту) ──> self.update_animation() - (Слот)
+		self.timer.timeout.connect(self.update_animation)
 
 
-		# Инициализация визуализации
-		self.init_visualizer()
-
-
-	def init_visualizer(self):
+	def _init_visualizer(self):
 		'''
 			Инициализация визуализации
 		'''
@@ -160,7 +189,6 @@ class MainWindow(QtWidgets.QWidget):
 		)
 		self.view.addItem(self.goal_scatter)
 
-	
 		# ----------------------   Робот и препятствия  -----------------------
 		self.robot = Robot(
 					self.start_pos, 
@@ -177,8 +205,7 @@ class MainWindow(QtWidgets.QWidget):
 		pos1 = [ [30, 0, 100]]
 		# self.num_obstacles = len(pos1)
 		print("Позиция всех препятствий = ", pos1)
-		print("Стартовая позиция робота ==", self.start_pos)
-		print("Позиция цели == ", self.goal_pos)
+
 		for num_obstacle in range(self.num_obstacles):
 			pos = np.random.uniform(0, min(self.space_size), 3)
 			# pos = [10, -10 + num_obstacle * 30, self.space_size[2]/2]  
@@ -217,35 +244,11 @@ class MainWindow(QtWidgets.QWidget):
 		self.update_animation()
 
 
-	def add_axes(self):
-		axis_length = max(self.space_size)*1.1
-		# X
-		x_axis = gl.GLLinePlotItem(pos=np.array([[0,0,0],[axis_length,0,0]]), color=QtGui.QColor(255,0,0), width=3, antialias=True)
-		self.view.addItem(x_axis)
-		# Y
-		y_axis = gl.GLLinePlotItem(pos=np.array([[0,0,0],[0,axis_length,0]]), color=QtGui.QColor(0,255,0), width=3, antialias=True)
-		self.view.addItem(y_axis)
-		# Z
-		z_axis = gl.GLLinePlotItem(pos=np.array([[0,0,0],[0,0,axis_length]]), color=QtGui.QColor(0,255,255), width=3, antialias=True)
-		self.view.addItem(z_axis)
-
-
-	def start_animation(self):
-		"""Запуск анимации"""
-		if not self.timer.isActive():
-			logging.info("Начало движения")
-			self.timer.start(33)  # 30мс = 33 FPS
-
-	def pause_animation(self):
-		logging.info("Пауза анимации")
-		self.timer.stop()
-
-	def stop_animation(self):
-		# Здесь можно сбросить состояние робота, пути, если потребуется
-		logging.info("Стоп анимации")
-		self.timer.stop()
-		
 	def update_animation(self):
+		''' 
+			Обновление анимации
+			Основной метод
+		'''
 		# if not self.running:
 		#     return
 		desired_dir = self.goal_pos - self.robot.get_position()     # Направление на цель
@@ -292,9 +295,9 @@ class MainWindow(QtWidgets.QWidget):
 		# ---   Обновление  МАТРИЦЫ ДИСТАНЦИЙ ---
 		matrix, min_dist, detected, angle = self.matrix_calc.update_distance_matrix(self.robot, self.detected_obstacles, self.startup_test)
 		print(matrix)
-		print(min_dist)
-		print(detected)
-		print(angle)
+		print("min_dist: ", min_dist)
+		print("DETECTED:", detected)
+		print("ANGLE: ", angle)
 
 		# min_val = np.min(matrix)
 		# idx_flat = np.argmin(matrix)
@@ -337,3 +340,48 @@ class MainWindow(QtWidgets.QWidget):
 					[-sy, 0, cy]])
 		
 		return Rx @ Ry @ vec
+	
+
+	def add_axes(self):
+		axis_length = max(self.space_size)*1.1
+		# X
+		x_axis = gl.GLLinePlotItem(pos=np.array([[0,0,0],[axis_length,0,0]]), color=QtGui.QColor(255,0,0), width=3, antialias=True)
+		self.view.addItem(x_axis)
+		# Y
+		y_axis = gl.GLLinePlotItem(pos=np.array([[0,0,0],[0,axis_length,0]]), color=QtGui.QColor(0,255,0), width=3, antialias=True)
+		self.view.addItem(y_axis)
+		# Z
+		z_axis = gl.GLLinePlotItem(pos=np.array([[0,0,0],[0,0,axis_length]]), color=QtGui.QColor(0,255,255), width=3, antialias=True)
+		self.view.addItem(z_axis)
+
+
+	def start_animation(self):
+		"""
+		Слот:
+		Запуск анимации
+		"""
+		if not self.timer.isActive():
+			logging.info("Начало движения")
+			self.timer.start(self.fps)  # 30мс = 33 FPS
+
+
+	def pause_animation(self):
+		''' 
+		Слот:
+		Пауза анимации
+		'''
+		logging.info("Пауза анимации")
+		self.timer.stop()
+
+
+	def stop_animation(self):
+		''' 
+		Слот:
+		Стоп анимации
+		'''
+		# Здесь можно сбросить состояние робота, пути, если потребуется
+		logging.info("Стоп анимации")
+		self.timer.stop()
+	
+
+

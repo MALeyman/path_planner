@@ -10,27 +10,22 @@
 
 import os
 
-# import signal
-# signal.signal(signal.SIGINT, signal.SIG_IGN) 
+# ★★★ ФИКС ДЛЯ WAYLAND ★★★
+# Заставляем Qt работать через XWayland (xcb), а PyOpenGL — через GLX.
+# Это нужно, потому что GLViewWidget из pyqtgraph использует GLX,
+# которого нет в нативном Wayland.
+os.environ.setdefault("QT_QPA_PLATFORM", "xcb")
+os.environ.setdefault("PYOPENGL_PLATFORM", "glx")
 
-
-# # ★★★ ЖЁСТКИЙ FIX для NVIDIA ★★★
-# os.environ['PYQTGRAPH_USE_OPENGL'] = '0'
-# os.environ["QT_OPENGL"] = "software"
-# os.environ["QSG_RENDERER_DEBUG"] = "renderer"  # Debug Qt
-# os.environ["QT_QUICK_BACKEND"] = "software"
-
-
-# ★★★ ЖЁСТКОЕ отключение OpenGL ★★★
-
-# os.environ["QT_OPENGL"] = "software"
-# os.environ["QT_OPENGL_IMPLEMENTATION"] = "software"
-# os.environ["QSG_RENDERER_DEBUG"] = "renderer"
+# Уберите эту строку — она бесполезна для GLViewWidget:
+# os.environ["PYQTGRAPH_USE_OPENGL"] = "0"
 
 os.environ["OMP_NUM_THREADS"] = "1"
-os.environ["MKL_NUM_THREADS"] = "1"  
+os.environ["MKL_NUM_THREADS"] = "1"
 os.environ["OPENBLAS_NUM_THREADS"] = "1"
-os.environ["PYQTGRAPH_USE_OPENGL"] = "0"
+
+import sys
+from PyQt5 import QtWidgets, QtCore, QtGui
 
 
 import sys
@@ -41,7 +36,7 @@ import logging
 
 from objects import Robot, Obstacle
 from calculate.check_collision import check_collision
-from animate.animate import MainWindow
+from animate.animate2 import MainWindow
 import time
 
 
@@ -81,15 +76,15 @@ if __name__ == "__main__":
 	start_pos = [0, 0, space_size[2]/2]                  	# Стартовая позиция робота
 	goal_pos = [size*0.8, size*0.8, space_size[2]/2]      	# Целевая точка робота
 	# goal_pos = [0, 200, space_size[2]/2] 
-	speed_robot = 0.3                           			# Скорость робота
-	num_obstacles = 150                         				# Количество препятствий
+	speed_robot = 1.9                           			# Скорость робота
+	num_obstacles = 150                        				# Количество препятствий
 	size_obstacles = 4                          			# Размеры препятствий
 	radar_distance = 50                         			# Дальность обнаружения препятствий (дальность радара)
 	sector_angle = np.pi/2                      			# Угол действия радара
-	speed_obstacles = 0.2 									# Скорость препятствий
+	speed_obstacles = 1.8 									# Скорость препятствий
 	matrix_size=91
 	startup_test = True										# Флаг запуска в тесте
-
+	fps=1
 
 
 	app = QtWidgets.QApplication(sys.argv)
@@ -104,7 +99,8 @@ if __name__ == "__main__":
 	    sector_angle=sector_angle,
 		speed_obstacles=speed_obstacles,
 		matrix_size=matrix_size,
-		startup_test=startup_test
+		startup_test=startup_test,
+		fps=fps
 
 	)
 	
@@ -112,10 +108,10 @@ if __name__ == "__main__":
 	window.move(50, 50)
 	window.show()
 	# ★★★ УЛУЧШЕННАЯ задержка ★★★
-	QtCore.QTimer.singleShot(500, lambda: (  # 2 секунды
-		window.activateWindow(), 
-		window.raise_()
-	))
+	# QtCore.QTimer.singleShot(500, lambda: (  # 2 секунды
+	# 	window.activateWindow(), 
+	# 	window.raise_()
+	# ))
 	# QtCore.QTimer.singleShot(500, window.start_animation)
 	# window.activateWindow()
 	# window.raise_()

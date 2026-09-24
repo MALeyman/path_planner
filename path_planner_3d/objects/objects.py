@@ -37,4 +37,5 @@ class SphereObject:
 		self.speed = np.array(new_speed)
 		
 	def get_speed(self):
-		return self.speed.copy()
+		print("СКОРОСТЬ : ", self.speed)
+		return self.speed

@@ -71,12 +71,6 @@ class Radar:
 		md = self.create_spherical_surface()
 		self.sphere_surface.setMeshData(meshdata=md, color=(0,1,1,0.1))
 
-		# sphere_points = self.create_spherical_base()
-		# self.sphere_base.setData(pos=sphere_points, size=4, color=(1,1,0,0.15))
-
-		# Основание
-		# base_points = np.vstack([base_vertices, base_vertices[0]])
-		# self.edges[4].setData(pos=base_points, mode='line_strip')
 	
 	def create_perpendicular_square(self, center, direction_move, side_length):
 		""" квадрат перпендикулярно направлению"""
@@ -99,41 +93,21 @@ class Radar:
 			center + half_side * (-v1 + v2)
 		])
 	
-
-	# def scan_pyramid_for_obstacles(self, obstacles):
-	# 	"""Возвращает препятствия ВНУТРИ пирамиды радара"""
-	# 	obstacles_info = []
-		
-	# 	# Вычисляем пирамиду (
-	# 	base_center = self.robot_pos + self.scan_range * self.direction
-	# 	base_side = 2 * self.scan_range * np.tan(self.sector_angle / 2)
-	# 	base_vertices = self.create_perpendicular_square(base_center, self.direction, base_side)
-		
-	# 	# Сканируем препятствия
-	# 	for i, obs in enumerate(obstacles):
-	# 		if self.is_sphere_inside_pyramid(obs.get_position(), obs.radius):
-	# 			distance = np.linalg.norm(obs.get_position() - self.robot_pos)
-	# 			direction_to_obs = (obs.get_position() - self.robot_pos) / distance
-	# 			obstacles_info.append({'index': i, 'pos': obs.position, 'dist': distance})
-		
-	# 	return obstacles_info
-
-
-	def is_sphere_inside_pyramid(self, obs_pos, obs_radius):
+	def is_sphere_inside_pyramid(self, obs_pos, obs_radius, robot_pos):
 		"""сфера внутри пирамиды?"""
-		# 1. Расстояние до вершины пирамиды
-		dist = np.linalg.norm(obs_pos - self.robot_pos)
+		#  Расстояние до вершины пирамиды
+		dist = np.linalg.norm(obs_pos - robot_pos)
 		if dist > self.scan_range + obs_radius:
 			return False
 		
 		# 2. Проверяем 4 грани пирамиды
-		base_center = self.robot_pos + self.scan_range * self.direction
+		base_center = robot_pos + self.scan_range * self.direction
 		base_vertices = self.create_perpendicular_square(base_center, self.direction, 
 													2 * self.scan_range * np.tan(self.sector_angle / 2))
 		
 		# Нормали граней (apex=robot_pos)
 		for i in range(4):
-			p1 = self.robot_pos
+			p1 = robot_pos
 			p2 = base_vertices[i]
 			p3 = base_vertices[(i+1)%4]
 			
@@ -196,7 +170,6 @@ class Radar:
 		# Упрощённый поворот (полная матрица позже)
 		rot_matrix = self.direction_to_matrix(direction)
 		return np.dot(points, rot_matrix.T)
-
 
 
 

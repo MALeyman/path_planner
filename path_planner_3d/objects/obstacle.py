@@ -16,12 +16,12 @@ class Obstacle(SphereObject):
 		norm = np.linalg.norm(direction)
 		self.direction = direction / norm if norm > 1e-8 else np.array([1,0,0])
 
-	def move(self):
-		new_pos = self.position + self.direction * self.speed
-		for i in range(3):
-			# Отражение от границ пространства
-			if new_pos[i] < 0 or new_pos[i] > self.space_size[i]:
-				self.direction[i] = -self.direction[i]
-				new_pos[i] = np.clip(new_pos[i], 0, self.space_size[i])
-		self.set_position(new_pos)
+	# def move(self):
+	# 	new_pos = self.position + self.direction * self.speed
+	# 	for i in range(3):
+	# 		# Отражение от границ пространства
+	# 		if new_pos[i] < 0 or new_pos[i] > self.space_size[i]:
+	# 			self.direction[i] = -self.direction[i]
+	# 			new_pos[i] = np.clip(new_pos[i], 0, self.space_size[i])
+	# 	self.set_position(new_pos)
 
